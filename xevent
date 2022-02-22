@@ -74,12 +74,7 @@ GO
 ALTER EVENT SESSION [TempDB_Spill] ON SERVER STATE = START
 GO
 
-
-
-
-
-
-Ref: find xevent path
+-- Ref: find xevent path
 SELECT 
               s.name,
               t.target_name,
