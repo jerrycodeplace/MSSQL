@@ -1,0 +1,91 @@
+-- 建立 xevent 監控
+
+--- 監控死結
+CREATE EVENT SESSION [Deadlocks] ON SERVER
+ADD EVENT sqlserver.xml_deadlock_report
+ADD TARGET package0.event_file(SET filename=N'Deadlocks', max_file_size=(250), max_rollover_files=(3))
+WITH (MAX_MEMORY=4096 KB, EVENT_RETENTION_MODE=ALLOW_SINGLE_EVENT_LOSS, MAX_DISPATCH_LATENCY=30 SECONDS, MAX_EVENT_SIZE=0 KB,MEMORY_PARTITION_MODE=NONE, TRACK_CAUSALITY=ON, STARTUP_STATE=ON)
+GO
+ALTER EVENT SESSION [Deadlocks] ON SERVER STATE = START
+GO
+
+--- 監控連線逾時
+CREATE EVENT SESSION [TimeOuts] ON SERVER
+ADD EVENT sqlserver.rpc_completed(SET collect_output_parameters=(1)
+    ACTION(sqlserver.client_app_name,sqlserver.client_hostname,sqlserver.database_name,sqlserver.is_system,sqlserver.nt_username,sqlserver.plan_handle,sqlserver.session_id)
+    WHERE ([result]=(2)))
+ADD TARGET package0.event_file(SET filename=N'TimeOuts',max_file_size=(250),max_rollover_files=(3))
+WITH (MAX_MEMORY=4096 KB,EVENT_RETENTION_MODE=ALLOW_SINGLE_EVENT_LOSS,MAX_DISPATCH_LATENCY=30 SECONDS,MAX_EVENT_SIZE=0 KB,MEMORY_PARTITION_MODE=NONE,TRACK_CAUSALITY=ON,STARTUP_STATE=ON)
+GO
+ALTER EVENT SESSION [TimeOuts] ON SERVER STATE = START
+GO
+
+--- 監控阻塞 (閥值20秒)
+sp_configure 'show advanced options', 1 ;  
+GO  
+RECONFIGURE ;  
+GO  
+sp_configure 'blocked process threshold', 20 ;  
+GO  
+RECONFIGURE ;  
+GO  
+
+CREATE EVENT SESSION [Blocking] ON SERVER
+ADD EVENT sqlserver.blocked_process_report
+ADD TARGET package0.event_file(SET filename=N'Blocking',max_file_size=(250),max_rollover_files=(3))
+WITH (MAX_MEMORY=4096 KB,EVENT_RETENTION_MODE=ALLOW_SINGLE_EVENT_LOSS,MAX_DISPATCH_LATENCY=30 SECONDS,MAX_EVENT_SIZE=0 KB,MEMORY_PARTITION_MODE=NONE,TRACK_CAUSALITY=ON,STARTUP_STATE=ON)
+GO
+ALTER EVENT SESSION [Blocking] ON SERVER STATE = START
+GO
+
+--- 監控長查詢 (閥值25秒)
+CREATE EVENT SESSION [DurationGT25Seconds] ON SERVER
+ADD EVENT sqlserver.rpc_completed(SET collect_output_parameters=(1),collect_statement=(1)
+    ACTION(sqlserver.client_app_name,sqlserver.client_hostname,sqlserver.database_name,sqlserver.is_system,sqlserver.nt_username,sqlserver.plan_handle,sqlserver.session_id)
+    WHERE ([duration]>(25000000)))
+ADD TARGET package0.event_file(SET filename=N'DurationGT25Seconds',max_file_size=(250),max_rollover_files=(3))
+WITH (MAX_MEMORY=4096 KB,EVENT_RETENTION_MODE=ALLOW_SINGLE_EVENT_LOSS,MAX_DISPATCH_LATENCY=30 SECONDS,MAX_EVENT_SIZE=0 KB,MEMORY_PARTITION_MODE=NONE,TRACK_CAUSALITY=ON,STARTUP_STATE=ON)
+GO
+ALTER EVENT SESSION [DurationGT25Seconds] ON SERVER STATE = START
+GO
+
+--- 監控系統錯誤
+CREATE EVENT SESSION [Errors] ON SERVER 
+ADD EVENT sqlserver.error_reported(
+    ACTION(package0.collect_system_time,sqlserver.client_app_name,sqlserver.client_hostname,sqlserver.database_name,sqlserver.is_system,sqlserver.nt_username,sqlserver.plan_handle,sqlserver.session_id,sqlserver.sql_text,sqlserver.tsql_stack)
+    WHERE ([sqlserver].[not_equal_i_sql_unicode_string]([sqlserver].[database_name],N'ITOPS') AND [package0].[greater_than_uint64]([sqlserver].[database_id],(4)) AND [package0].[not_equal_int64]([error_number],(2528)) AND [package0].[not_equal_int64]([error_number],(2701)) AND [package0].[not_equal_int64]([error_number],(3014)) AND [package0].[not_equal_int64]([error_number],(3211)) AND [package0].[not_equal_int64]([error_number],(3262)) AND [package0].[not_equal_int64]([error_number],(3606)) AND [package0].[not_equal_int64]([error_number],(3701)) AND [package0].[not_equal_int64]([error_number],(4035)) AND [package0].[not_equal_int64]([error_number],(5701)) AND [package0].[not_equal_int64]([error_number],(5703)) AND [package0].[not_equal_int64]([error_number],(7955)) AND [package0].[not_equal_int64]([error_number],(7998)) AND [package0].[not_equal_int64]([error_number],(8153)) AND [package0].[not_equal_int64]([error_number],(8957)) AND [package0].[not_equal_int64]([error_number],(9104)) AND [package0].[not_equal_int64]([error_number],(14108)) AND [package0].[not_equal_int64]([error_number],(14149)) AND [package0].[not_equal_int64]([error_number],(14150)) AND [package0].[not_equal_int64]([error_number],(14213)) AND [package0].[not_equal_int64]([error_number],(14216)) AND [package0].[not_equal_int64]([error_number],(18264)) AND [package0].[not_equal_int64]([error_number],(18265)) AND [package0].[not_equal_int64]([error_number],(20561)) AND [package0].[not_equal_int64]([error_number],(20575)) AND [package0].[not_equal_int64]([error_number],(21010)) AND [package0].[not_equal_int64]([error_number],(50000)) AND [package0].[not_equal_int64]([error_number],(15650)) AND [package0].[not_equal_int64]([error_number],(15651)) AND [package0].[not_equal_int64]([error_number],(15652)) AND [package0].[not_equal_int64]([error_number],(15653)) AND [package0].[not_equal_int64]([error_number],(14151)) AND [package0].[not_equal_int64]([error_number],(14552)) AND [package0].[not_equal_int64]([error_number],(14553)) AND [package0].[not_equal_int64]([error_number],(22903)) AND [is_intercepted]=(0))) 
+ADD TARGET package0.event_file(SET filename=N'Errors',max_file_size=(250),max_rollover_files=(3))
+WITH (MAX_MEMORY=4096 KB,EVENT_RETENTION_MODE=ALLOW_SINGLE_EVENT_LOSS,MAX_DISPATCH_LATENCY=30 SECONDS,MAX_EVENT_SIZE=0 KB,MEMORY_PARTITION_MODE=NONE,TRACK_CAUSALITY=ON,STARTUP_STATE=ON)
+GO
+ALTER EVENT SESSION [Errors] ON SERVER STATE = START
+GO
+
+--- 監控tempdb溢出
+CREATE EVENT SESSION [TempDB_Spill] ON SERVER 
+ADD EVENT sqlserver.hash_warning(
+    ACTION(sqlserver.client_app_name,sqlserver.client_hostname,sqlserver.database_name,sqlserver.is_system,sqlserver.nt_username,sqlserver.plan_handle,sqlserver.sql_text,sqlserver.tsql_frame,sqlserver.tsql_stack)
+    WHERE ([sqlserver].[client_app_name] NOT LIKE N'%Spotlight%')),
+ADD EVENT sqlserver.sort_warning(
+    ACTION(sqlserver.client_app_name,sqlserver.client_hostname,sqlserver.database_name,sqlserver.is_system,sqlserver.nt_username,sqlserver.plan_handle,sqlserver.sql_text,sqlserver.tsql_frame,sqlserver.tsql_stack)
+    WHERE ([sqlserver].[client_app_name] NOT LIKE N'%Spotlight%')) 
+ADD TARGET package0.event_file(SET filename=N'TempDB_Spill',max_file_size=(250),max_rollover_files=(3))
+WITH (MAX_MEMORY=4096 KB,EVENT_RETENTION_MODE=ALLOW_SINGLE_EVENT_LOSS,MAX_DISPATCH_LATENCY=30 SECONDS,MAX_EVENT_SIZE=0 KB,MEMORY_PARTITION_MODE=NONE,TRACK_CAUSALITY=ON,STARTUP_STATE=ON)
+GO
+ALTER EVENT SESSION [TempDB_Spill] ON SERVER STATE = START
+GO
+
+
+
+
+
+
+Ref: find xevent path
+SELECT 
+              s.name,
+              t.target_name,
+              CAST(t.target_data AS XML)  AS [XML-Cast]
+FROM
+              sys.dm_xe_session_targets  AS t
+              JOIN  sys.dm_xe_sessions         AS s
+              ON s.address = t.event_session_address
+
