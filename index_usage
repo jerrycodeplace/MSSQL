@@ -1,0 +1,46 @@
+/*
+use: index usage (e.g. seeks, scans, lookups, updates) 查詢索引被使用狀況
+remark: 目前若想重置 dm_db_index_usage_stats 統計值, 只能重新啟動資料庫引擎 
+*/
+
+use [xxx]
+go
+
+-- index usage for all tables 所有資料表索引
+SELECT
+  s.name AS SchemaName ,
+  t.Name AS TableName ,
+  ix.Name AS IndexName ,
+  ix.type_desc ,
+  us.user_seeks ,
+  us.user_scans ,
+  us.user_lookups ,
+  us.user_updates  
+FROM sys.tables AS t 
+  JOIN sys.schemas s on t.[schema_id] = s.[schema_id]
+  JOIN sys.indexes AS ix ON t.[object_id] = ix.[object_id]
+  JOIN sys.dm_db_index_usage_stats AS us ON ix.[object_id] = us.[object_id]
+                                           AND ix.index_id = us.index_id    
+WHERE t.type = 'U' -- 使用者自訂 Table
+
+-- index usage for specific table 特定資料表索引
+DECLARE @table varchar(100)
+SET @table = 'yyy'
+
+SELECT
+    OBJECT_NAME(I.object_id) AS table_name, 
+    I.name AS index_name, 
+    S.user_seeks, 
+    S.user_scans, 
+    S.user_lookups,I.type_desc,
+    CASE
+        WHEN last_user_seek is not null then last_user_seek 
+        WHEN last_user_scan is not null then last_user_scan 
+        else last_user_update
+    END as user_time
+FROM
+    sys.indexes AS I
+    LEFT JOIN sys.dm_db_index_usage_stats AS S ON S.object_id = I.object_id AND S.index_id=I.index_id
+WHERE
+    I.object_id = OBJECT_ID(@table, N'U')
+ORDER BY user_time desc;
