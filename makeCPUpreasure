@@ -1,5 +1,5 @@
 /*
-use: make prasure for CPU, will depends on MaxDOP setting. If set to 4, one session can only squeeze 4 cores. 製造CPU壓力, 與MAXDOP設定相關, 若設為4, 則單一連線只能壓4core
+use: make prasure for CPU, will depends on MAXDOP setting. If set to 4, one session can only squeeze 4 cores. 製造CPU壓力, 與MAXDOP設定相關, 若設為4, 則單一連線只能壓4core
 remark: beware the tempdb preasure, too. DO NOT use  in production server!!! unless you know what you are doing!!! 
 */
 
