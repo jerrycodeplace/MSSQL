@@ -1,5 +1,6 @@
 /*
-MSDN: Extended Events is a lightweight performance monitoring system that uses minimal performance resources. Extended Events are replacing the deprecated SQL Trace and SQL Server Profiler features
+MSDN: Extended Events is a lightweight performance monitoring system that uses minimal performance resources. 
+Extended Events are replacing the deprecated SQL Trace and SQL Server Profiler features
 */
 
 --- 監控死結
