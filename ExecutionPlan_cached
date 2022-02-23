@@ -1,0 +1,28 @@
+/*
+use: find specific query form cached execution plans
+*/
+
+DECLARE @__searchstring VARCHAR(200)
+SET @__searchstring = 'putsomethinghere'
+
+SELECT 
+  cp.objtype, cp.cacheobjtype, cp.usecounts, st.TEXT, qp.query_plan
+FROM sys.dm_exec_cached_plans cp
+  OUTER APPLY sys.dm_exec_sql_text(cp.plan_handle) st
+  OUTER APPLY sys.dm_exec_query_plan(cp.plan_handle) qp
+WHERE 
+  CHARINDEX(__searchstring, st.TEXT)> 0
+  AND st.TEXT NOT LIKE '%dm_exec_cached_plans%';
+  
+/*
+use: most called cached execution plans
+*/
+
+SELECT TOP 50
+  cp.objtype, cp.cacheobjtype, cp.usecounts, st.TEXT, qp.query_plan
+FROM sys.dm_exec_cached_plans cp
+  OUTER APPLY sys.dm_exec_sql_text(cp.plan_handle) st
+  OUTER APPLY sys.dm_exec_query_plan(cp.plan_handle) qp
+WHERE 
+  st.TEXT NOT LIKE '%dm_exec_cached_plans%'
+ORDER BY cp.usecounts DESC  
