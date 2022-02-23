@@ -74,6 +74,20 @@ GO
 ALTER EVENT SESSION [TempDB_Spill] ON SERVER STATE = START
 GO
 
+--- 監控AdHocQueries
+CREATE EVENT SESSION [TrackAdHocQueries] ON SERVER
+ADD EVENT sqlserver.query_post_compilation_showplan(
+    WHERE ([package0].[equal_uint64]([sqlserver].[session_id],(127)))),
+ADD EVENT sqlserver.query_post_execution_showplan(
+    WHERE ([package0].[equal_uint64]([sqlserver].[session_id],(127)))),
+ADD EVENT sqlserver.uncached_sql_batch_statistics(
+    ACTION(sqlserver.query_hash,sqlserver.sql_text)
+    WHERE ([package0].[equal_uint64]([sqlserver].[session_id],(127))))
+WITH (TRACK_CAUSALITY=OFF,STARTUP_STATE=OFF)
+GO
+ALTER EVENT SESSION [TrackAdHocQueries] ON SERVER STATE = START
+GO
+
 -- Ref: find xevent path
 SELECT 
               s.name,
