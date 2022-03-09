@@ -1,0 +1,62 @@
+CREATE TABLE #tempFileInformation
+(
+DBNAME          NVARCHAR(256),
+[FILENAME]      NVARCHAR(256),
+[TYPE]          NVARCHAR(120),
+FILEGROUPNAME   NVARCHAR(120),
+FILE_LOCATION   NVARCHAR(500),
+FILESIZE_MB     DECIMAL(10,2),
+USEDSPACE_MB    DECIMAL(10,2),
+FREESPACE_MB    DECIMAL(10,2),
+AUTOGROW_STATUS NVARCHAR(100)
+)
+GO
+
+DECLARE @SQL VARCHAR(2000)
+
+SELECT @SQL = '
+ USE [?]
+            INSERT INTO #tempFileInformation
+            SELECT  
+                DBNAME          =DB_NAME(),     
+                [FILENAME]      =A.NAME,
+                [TYPE]          = A.TYPE_DESC,
+                FILEGROUPNAME   = fg.name,
+                FILE_LOCATION   =a.PHYSICAL_NAME,
+                FILESIZE_MB     = CONVERT(DECIMAL(10,2),A.SIZE/128.0),
+                USEDSPACE_MB    = CONVERT(DECIMAL(10,2),(A.SIZE/128.0 - ((A.SIZE - CAST(FILEPROPERTY(A.NAME,''SPACEUSED'') AS INT))/128.0))),
+                FREESPACE_MB    = CONVERT(DECIMAL(10,2),(A.SIZE/128.0 -  CAST(FILEPROPERTY(A.NAME,''SPACEUSED'') AS INT)/128.0)),
+                AUTOGROW_STATUS = ''BY '' +CASE is_percent_growth when 0 then cast (growth/128 as varchar(10))+ '' MB - ''
+                                                                  when 1 then cast (growth as varchar(10)) + ''% - '' ELSE '''' END
+                                                                  + CASE MAX_SIZE WHEN 0 THEN '' DISABLED '' 
+                                                                                  WHEN -1 THEN '' UNRESTRICTED''
+                                                                                  ELSE '' RESTRICTED TO '' + CAST(MAX_SIZE/(128*1024) AS VARCHAR(10)) + '' GB '' END
+                                                                + CASE IS_PERCENT_GROWTH WHEn 1 then '' [autogrowth by percent]'' else '''' end
+    from sys.database_files A
+    left join sys.filegroups fg on a.data_space_id = fg.data_space_id
+    order by A.type desc,A.name
+    ;
+    '
+
+    --print @sql
+
+    EXEC sp_MSforeachdb @SQL
+    go
+
+    SELECT dbSize.*,fg.*,d.log_reuse_wait_desc,d.recovery_model_desc
+    FROM #tempFileInformation fg
+    LEFT JOIN sys.databases d on fg.DBNAME = d.name
+    CROSS APPLY
+    (
+        select dbname,
+                sum(FILESIZE_MB) as [totalDBSize_MB],
+                sum(FREESPACE_MB) as [DB_Free_Space_Size_MB],
+                sum(USEDSPACE_MB) as [DB_Used_Space_Size_MB]
+            from #tempFileInformation
+            where  dbname = fg.dbname
+            group by dbname
+    )dbSize
+
+
+go
+DROP TABLE #tempFileInformation
