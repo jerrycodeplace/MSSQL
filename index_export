@@ -1,6 +1,7 @@
 /*
 -- Index Export Script
 -- Original Author: Jerry
+-- v2: add IF NOT EXISTS statement on CreateIndexScript column
 use: export index definition
 */
 
@@ -8,9 +9,10 @@ DECLARE @SQL NVARCHAR(MAX) = '';
 
 WITH IndexDetails AS (
     SELECT 
+        s.name AS SchemaName,  -- 取得 Schema 名稱
         t.name AS TableName,
         i.name AS IndexName,
-        i.type_desc AS IndexType,
+        i.type_desc AS IndexType,  -- 索引類型，如 CLUSTERED / NONCLUSTERED
         i.is_unique AS IsUnique,
         STRING_AGG(
             CASE WHEN ic.is_included_column = 0 THEN c.name COLLATE DATABASE_DEFAULT ELSE NULL END, ', '
@@ -20,20 +22,25 @@ WITH IndexDetails AS (
         ) AS IncludeColumns
     FROM sys.indexes i
     JOIN sys.tables t ON i.object_id = t.object_id
+    JOIN sys.schemas s ON t.schema_id = s.schema_id  -- 加入 Schema
     JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
     JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
     WHERE i.type > 0 -- 排除 Heap
       AND i.is_primary_key = 0 -- 排除主鍵
       AND i.is_unique_constraint = 0 -- 排除 UNIQUE 約束
-    GROUP BY t.name, i.name, i.type_desc, i.is_unique
+    GROUP BY s.name, t.name, i.name, i.type_desc, i.is_unique
 )
 SELECT 
+    SchemaName,  -- 顯示 Schema 名稱
     TableName,
+    IndexName,   -- 新增 IndexName 欄位
+    IndexType,   -- 顯示索引類別
+    'IF NOT EXISTS (SELECT name FROM sys.indexes WHERE name = ''' + IndexName + ''' AND object_id = OBJECT_ID(''' + SchemaName + '.' + TableName + ''')) ' + 
     'CREATE ' + 
     CASE WHEN IsUnique = 1 THEN 'UNIQUE ' ELSE '' END +
-    IndexType + ' INDEX [' + IndexName + '] ON [' + TableName + '] (' + KeyColumns + ')' +
+    IndexType + ' INDEX [' + IndexName + '] ON [' + SchemaName + '].[' + TableName + '] (' + KeyColumns + ')' +
     CASE WHEN IncludeColumns IS NOT NULL AND IncludeColumns <> '' 
          THEN ' INCLUDE (' + IncludeColumns + ')' ELSE '' END + ';' 
     AS CreateIndexScript
 FROM IndexDetails
-ORDER BY TableName, IndexName;
+ORDER BY SchemaName, TableName, IndexName;
