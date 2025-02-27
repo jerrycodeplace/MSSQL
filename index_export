@@ -1,0 +1,39 @@
+/*
+-- Index Export Script
+-- Original Author: Jerry
+use: export index definition
+*/
+
+DECLARE @SQL NVARCHAR(MAX) = '';
+
+WITH IndexDetails AS (
+    SELECT 
+        t.name AS TableName,
+        i.name AS IndexName,
+        i.type_desc AS IndexType,
+        i.is_unique AS IsUnique,
+        STRING_AGG(
+            CASE WHEN ic.is_included_column = 0 THEN c.name COLLATE DATABASE_DEFAULT ELSE NULL END, ', '
+        ) WITHIN GROUP (ORDER BY ic.key_ordinal) AS KeyColumns,
+        STRING_AGG(
+            CASE WHEN ic.is_included_column = 1 THEN c.name COLLATE DATABASE_DEFAULT ELSE NULL END, ', '
+        ) AS IncludeColumns
+    FROM sys.indexes i
+    JOIN sys.tables t ON i.object_id = t.object_id
+    JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
+    JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+    WHERE i.type > 0 -- 排除 Heap
+      AND i.is_primary_key = 0 -- 排除主鍵
+      AND i.is_unique_constraint = 0 -- 排除 UNIQUE 約束
+    GROUP BY t.name, i.name, i.type_desc, i.is_unique
+)
+SELECT 
+    TableName,
+    'CREATE ' + 
+    CASE WHEN IsUnique = 1 THEN 'UNIQUE ' ELSE '' END +
+    IndexType + ' INDEX [' + IndexName + '] ON [' + TableName + '] (' + KeyColumns + ')' +
+    CASE WHEN IncludeColumns IS NOT NULL AND IncludeColumns <> '' 
+         THEN ' INCLUDE (' + IncludeColumns + ')' ELSE '' END + ';' 
+    AS CreateIndexScript
+FROM IndexDetails
+ORDER BY TableName, IndexName;
